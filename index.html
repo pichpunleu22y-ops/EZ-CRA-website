@@ -197,6 +197,9 @@
         <a id="floatingTelegramLink" href="https://t.me/EZCar168" target="_blank" rel="noopener noreferrer" title="Telegram @EZCar168" class="w-9 h-9 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center shadow-lg transition transform hover:scale-110">
             <i class="fa-brands fa-telegram text-sm"></i>
         </a>
+        <a id="floatingFacebookLink" href="https://www.facebook.com/profile.php?id=61592937552489" target="_blank" rel="noopener noreferrer" title="Facebook Page EZ CAR" class="w-9 h-9 rounded-full bg-[#1877F2] hover:bg-blue-700 text-white flex items-center justify-center shadow-lg transition transform hover:scale-110">
+            <i class="fa-brands fa-facebook-f text-xs"></i>
+        </a>
         <button onclick="openCalculatorModal()" title="គណនាប្រាក់បង់រំលស់" class="w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-lg transition transform hover:scale-110">
             <i class="fa-solid fa-calculator text-xs"></i>
         </button>
@@ -316,6 +319,9 @@
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] bg-sky-500/20 text-sky-300 border border-sky-500/30">
                         <i class="fa-brands fa-telegram mr-1 text-xs"></i> <span id="heroTelegramBadgeText" data-editable="telegram">@EZCar168</span>
                     </span>
+                    <a id="heroFacebookBadgeLink" href="https://www.facebook.com/profile.php?id=61592937552489" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] bg-blue-600/25 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 transition">
+                        <i class="fa-brands fa-facebook mr-1.5 text-xs"></i> <span data-editable="facebookName">EZ CAR Facebook</span>
+                    </a>
                 </div>
 
                 <!-- 3 Hero Action Buttons (Editable Labels) -->
@@ -655,6 +661,22 @@
                             </div>
                         </div>
                         <a href="https://t.me/EZCar168" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-white">
+                            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                        </a>
+                    </div>
+
+                    <!-- Facebook Page Button -->
+                    <div class="w-full bg-neutral-900 hover:bg-neutral-800 border border-white/15 rounded-lg p-2.5 mb-2.5 flex items-center justify-between transition group">
+                        <div class="flex items-center gap-2.5">
+                            <a id="sidebarFacebookLink" href="https://www.facebook.com/profile.php?id=61592937552489" target="_blank" rel="noopener noreferrer" class="w-7 h-7 rounded-full bg-[#1877F2] flex items-center justify-center text-white shrink-0">
+                                <i class="fa-brands fa-facebook-f text-xs"></i>
+                            </a>
+                            <div class="text-left">
+                                <div data-editable="fb_label" class="text-[10px] font-extrabold tracking-wider uppercase text-white font-display">FACEBOOK PAGE</div>
+                                <a id="sidebarFacebookTextLink" href="https://www.facebook.com/profile.php?id=61592937552489" target="_blank" rel="noopener noreferrer" data-editable="facebookName" class="text-[10px] text-blue-400 font-semibold hover:underline block">EZ CAR Phnom Penh</a>
+                            </div>
+                        </div>
+                        <a id="sidebarFacebookArrow" href="https://www.facebook.com/profile.php?id=61592937552489" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-white">
                             <i class="fa-solid fa-chevron-right text-[10px]"></i>
                         </a>
                     </div>
@@ -1367,6 +1389,10 @@
                                 <label class="font-bold text-neutral-700 block mb-1">គណនី Telegram (ឧ. @EZCar168)</label>
                                 <input id="cfgTelegram" type="text" value="@EZCar168" class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
                             </div>
+                            <div class="md:col-span-3">
+                                <label class="font-bold text-neutral-700 block mb-1">តំណភ្ជាប់ទំព័រ Facebook Page (Facebook Link)</label>
+                                <input id="cfgFacebookUrl" type="text" value="https://www.facebook.com/profile.php?id=61592937552489" class="w-full px-3 py-2 border border-neutral-300 rounded-lg">
+                            </div>
                         </div>
 
                         <!-- Custom Logo Upload Option -->
@@ -1549,6 +1575,8 @@
     "brandName": "EZ CAR",
     "phone": "071 536 6013",
     "telegram": "@EZCar168",
+    "facebookUrl": "https://www.facebook.com/profile.php?id=61592937552489",
+    "facebookName": "EZ CAR Phnom Penh",
     "heroTitle": "រថយន្តចិននៅភ្នំពេញ",
     "heroSub": "រថយន្តថ្មី រថយន្តហាយប្រ៊ីដ និងរថយន្តអគ្គិសនី ពីហាងរថយន្តដែលអាចទុកចិត្តបាន",
     "heroPromo": "បង់កក់ត្រឹមតែ <strong class=\"text-amber-400 font-bold\">20%</strong> ប៉ុណ្ណោះ!",
@@ -2723,8 +2751,18 @@
 
             document.getElementById('stockSectionTitle').innerHTML = s.stockTitle;
             if (s.stockSub) document.getElementById('stockSectionSub').innerHTML = s.stockSub;
+            const fbUrl = s.facebookUrl || 'https://www.facebook.com/profile.php?id=61592937552489';
             document.getElementById('sidebarTelegramLink').href = tgUrl;
             document.getElementById('sidebarTelegramText').innerHTML = '@' + cleanTg;
+            if (document.getElementById('sidebarFacebookLink')) document.getElementById('sidebarFacebookLink').href = fbUrl;
+            if (document.getElementById('sidebarFacebookTextLink')) {
+                document.getElementById('sidebarFacebookTextLink').href = fbUrl;
+                document.getElementById('sidebarFacebookTextLink').innerHTML = s.facebookName || 'EZ CAR Phnom Penh';
+            }
+            if (document.getElementById('sidebarFacebookArrow')) document.getElementById('sidebarFacebookArrow').href = fbUrl;
+            if (document.getElementById('floatingFacebookLink')) document.getElementById('floatingFacebookLink').href = fbUrl;
+            if (document.getElementById('heroFacebookBadgeLink')) document.getElementById('heroFacebookBadgeLink').href = fbUrl;
+            if (document.getElementById('cfgFacebookUrl')) document.getElementById('cfgFacebookUrl').value = fbUrl;
             document.getElementById('sidebarPhoneLink').href = `tel:${cleanPhone}`;
             document.getElementById('sidebarPhoneText').innerHTML = s.phone;
             document.getElementById('sidebarAddressText').innerHTML = s.address;
@@ -3013,6 +3051,9 @@
             window.siteSettings.brandName = document.getElementById('cfgBrandName').value.trim() || 'EZ CAR';
             window.siteSettings.phone = document.getElementById('cfgPhone').value.trim() || '071 536 6013';
             window.siteSettings.telegram = document.getElementById('cfgTelegram').value.trim() || '@EZCar168';
+            if (document.getElementById('cfgFacebookUrl')) {
+                window.siteSettings.facebookUrl = document.getElementById('cfgFacebookUrl').value.trim() || 'https://www.facebook.com/profile.php?id=61592937552489';
+            }
             window.siteSettings.heroTitle = document.getElementById('cfgHeroTitle').value.trim();
             window.siteSettings.heroPromo = document.getElementById('cfgHeroPromo').value.trim();
             window.siteSettings.heroSub = document.getElementById('cfgHeroSub').value.trim();
@@ -3510,62 +3551,7 @@
     </script>
 
 
-      <script>
-        (function() {
-          // The root element's background fills the whole page. As in CSS,
-          // the body's background is used when the root element has none.
-          function getPageBackgroundColor() {
-            var docStyle = window.getComputedStyle(document.documentElement);
-            var color = docStyle.backgroundColor;
-            if ((color === 'rgba(0, 0, 0, 0)' || color === 'transparent') &&
-                docStyle.backgroundImage === 'none' && document.body) {
-              color = window.getComputedStyle(document.body).backgroundColor;
-            }
-            return color || '';
-          }
-
-          var lastReportedColor = '';
-          function reportBackgroundColor() {
-            try {
-              var color = getPageBackgroundColor();
-              if (color === lastReportedColor) return;
-              lastReportedColor = color;
-              window.parent.postMessage({
-                type: 'ATARI_CODE_EMBED_BACKGROUND_COLOR',
-                backgroundColor: color
-              }, '*');
-            } catch (e) {}
-          }
-
-          // The page background usually changes through an attribute on html
-          // or body (for example a theme class), a style sheet in head, or the
-          // system color scheme.
-          if (typeof MutationObserver !== 'undefined') {
-            var observer = new MutationObserver(reportBackgroundColor);
-            observer.observe(document.documentElement, {attributes: true});
-            if (document.body) {
-              observer.observe(document.body, {attributes: true});
-            }
-            if (document.head) {
-              observer.observe(document.head, {
-                attributes: true,
-                childList: true,
-                subtree: true,
-                characterData: true
-              });
-            }
-          }
-          var colorSchemeQuery =
-              window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-          if (colorSchemeQuery && colorSchemeQuery.addEventListener) {
-            colorSchemeQuery.addEventListener('change', reportBackgroundColor);
-          }
-          window.addEventListener('load', reportBackgroundColor);
-          window.addEventListener('transitionend', reportBackgroundColor);
-          window.addEventListener('animationend', reportBackgroundColor);
-          reportBackgroundColor();
-        })();
-      </script>
+      
     
 <!-- ==========================================
      ប្រព័ន្ធចាក់សោសម្ងាត់សម្រាប់ម្ចាស់វេបសាយ (ADMIN PASSWORD LOCK)
