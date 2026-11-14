@@ -3291,4 +3291,81 @@
           reportBackgroundColor();
         })();
       </script>
-    </body></html>
+    
+<!-- ==========================================
+     ប្រព័ន្ធចាក់សោសម្ងាត់សម្រាប់ម្ចាស់វេបសាយ (ADMIN PASSWORD LOCK)
+     ========================================== -->
+<style id="ezcar-security-style">
+    /* លាក់គ្រប់ប៊ូតុងកែប្រែ និងរបារ Admin ទាំងអស់សម្រាប់ភ្ញៀវទូទៅ */
+    body:not(.ez-admin-unlocked) #adminQuickBar,
+    body:not(.ez-admin-unlocked) #visualEditModeBanner,
+    body:not(.ez-admin-unlocked) button[onclick*="openAdminDashboard"],
+    body:not(.ez-admin-unlocked) button[onclick*="toggleInlineEditMode"],
+    body:not(.ez-admin-unlocked) button[onclick*="triggerQuickMultiUploadForCar"],
+    body:not(.ez-admin-unlocked) button[onclick*="triggerAddMorePhotosToCurrentCar"],
+    body:not(.ez-admin-unlocked) button[onclick*="setModalPhotoAsCover"],
+    body:not(.ez-admin-unlocked) button[onclick*="deleteCurrentModalPhoto"],
+    body:not(.ez-admin-unlocked) button[onclick*="openEditCarFromDetailModal"] {
+        display: none !important;
+    }
+</style>
+
+<!-- ប៊ូតុងសម្ងាត់សម្រាប់ម្ចាស់វេបសាយនៅជ្រុងខាងក្រោមឆ្វេង -->
+<button
+    id="ezOwnerLockBtn"
+    onclick="toggleEZAdminAuth()"
+    class="fixed bottom-3 left-3 z-40 bg-neutral-900/80 hover:bg-neutral-900 text-neutral-300 hover:text-amber-400 text-[11px] font-bold px-3 py-1.5 rounded-full border border-white/15 shadow-lg backdrop-blur-sm flex items-center gap-1.5 transition"
+    title="សម្រាប់ម្ចាស់វេបសាយ (ឬចុច Ctrl + Shift + A)"
+>
+    <i id="ezOwnerLockIcon" class="fa-solid fa-lock text-[10px] text-amber-400"></i>
+    <span id="ezOwnerLockText">Admin</span>
+</button>
+
+<script>
+    // លេខសម្ងាត់ម្ចាស់វេបសាយ (អាចប្តូរពាក្យ 'ezcar168' បានតាមចិត្ត)
+    const EZ_ADMIN_PASSWORD = "ezcar168";
+    window.isEZAdminUnlocked = false;
+
+    function toggleEZAdminAuth() {
+        if (window.isEZAdminUnlocked) {
+            if (window.inlineEditMode) {
+                toggleInlineEditMode();
+            }
+            window.isEZAdminUnlocked = false;
+            document.body.classList.remove("ez-admin-unlocked");
+            document.getElementById("ezOwnerLockIcon").className = "fa-solid fa-lock text-[10px] text-amber-400";
+            document.getElementById("ezOwnerLockText").innerText = "Admin";
+            showToast("បានចាក់សោបិទផ្ទាំង Admin!", "ឥឡូវនេះវេបសាយស្ថិតក្នុងទម្រង់សម្រាប់ភ្ញៀវចូលមើលធម្មតា។");
+        } else {
+            const pwd = prompt("🔐 សូមវាយលេខសម្ងាត់ម្ចាស់វេបសាយ EZ CAR៖");
+            if (pwd === null) return;
+            if (pwd === EZ_ADMIN_PASSWORD) {
+                window.isEZAdminUnlocked = true;
+                document.body.classList.add("ez-admin-unlocked");
+                document.getElementById("ezOwnerLockIcon").className = "fa-solid fa-lock-open text-[10px] text-emerald-400";
+                document.getElementById("ezOwnerLockText").innerText = "ចាក់សោបិទ Admin";
+                showToast("បើកសោ Admin ជោគជ័យ!", "ឥឡូវនេះបងអាចកែអក្សរ និងបន្ថែម/ដករូបឡានបានតាមចិត្ត។");
+            } else {
+                alert("❌ លេខសម្ងាត់មិនត្រឹមត្រូវទេ! មានតែម្ចាស់វេបសាយប៉ុណ្ណោះទើបអាចកែប្រែបាន។");
+            }
+        }
+    }
+
+    document.addEventListener("keydown", function(e) {
+        if (e.ctrlKey && e.shiftKey && (e.key === "A" || e.key === "a")) {
+            e.preventDefault();
+            toggleEZAdminAuth();
+        }
+    });
+
+    const origDownloadFn = window.downloadStandaloneHTML;
+    window.downloadStandaloneHTML = function() {
+        document.body.classList.remove("ez-admin-unlocked");
+        origDownloadFn();
+        if (window.isEZAdminUnlocked) {
+            document.body.classList.add("ez-admin-unlocked");
+        }
+    };
+</script>
+
+</body></html>
