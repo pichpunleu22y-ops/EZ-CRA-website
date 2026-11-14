@@ -591,9 +591,8 @@
 
                     <form id="appointmentForm" onsubmit="submitAppointment(event)" class="space-y-3">
                         <div>
-                            <select id="bookingService" required="" class="w-full px-3 py-2.5 text-xs text-neutral-700 bg-white border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-bronze">
-                                <option value="" disabled="" selected="">ជ្រើសរើសសេវាកម្ម</option>
-                                <option value="ណាត់មើលរថយន្តផ្ទាល់នៅ Showroom">ណាត់មើលរថយន្តផ្ទាល់នៅ Showroom</option>
+                            <select id="bookingService" class="w-full px-3 py-2.5 text-xs text-neutral-700 bg-white border border-neutral-200 rounded-lg focus:outline-none focus:border-brand-bronze">
+                                <option value="ណាត់មើលរថយន្តផ្ទាល់នៅ Showroom" selected="">ណាត់មើលរថយន្តផ្ទាល់នៅ Showroom (ជ្រើសរើសសេវាកម្ម)</option>
                                 <option value="ប្រឹក្សាសេវាបង់រំលស់ (កក់ 20%)">ប្រឹក្សាសេវាបង់រំលស់ (កក់ 20%)</option>
                                 <option value="ស្នើសុំបើកបរសាកល្បង (Test Drive)">ស្នើសុំបើកបរសាកល្បង (Test Drive)</option>
                                 <option value="វាយតម្លៃរថយន្តចាស់ដូររថយន្តថ្មី">វាយតម្លៃរថយន្តចាស់ដូររថយន្តថ្មី</option>
@@ -1412,17 +1411,83 @@
                     </form>
                 </div>
 
-                <!-- TAB 5: CUSTOMER APPOINTMENTS LIST -->
+                <!-- TAB 5: CUSTOMER APPOINTMENTS LIST + TELEGRAM BOT & CLOUD SYNC -->
                 <div id="adminTab-bookings" class="hidden space-y-4">
+                    <!-- Telegram & Online Sync Config Card -->
+                    <div class="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm space-y-3 text-xs">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2.5">
+                            <div>
+                                <h4 class="text-xs font-bold text-sky-700 flex items-center gap-1.5">
+                                    <i class="fa-brands fa-telegram text-base"></i>
+                                    <span>ប្រព័ន្ធទទួលការណាត់ជួបអនឡាញ & បាញ់សារចូល Telegram ស្វ័យប្រវត្តិ</span>
+                                </h4>
+                                <p class="text-[11px] text-neutral-500 mt-0.5">
+                                    រាល់ពេលភ្ញៀវចុចកក់ពីទូរស័ព្ទណាក៏ដោយ ទិន្នន័យនឹងរក្សាទុកអនឡាញរួម និងអាចបាញ់ចូល Telegram របស់បងផ្ទាល់។
+                                </p>
+                            </div>
+                            <button type="button" onclick="fetchSharedBookingsFromCloud(true)" class="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-rotate"></i> ទាញទិន្នន័យកក់ថ្មីៗ (Refresh)
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div class="md:col-span-5">
+                                <label class="font-bold text-neutral-700 block mb-1">Telegram Bot Token (ជម្រើស - សម្រាប់បាញ់សារស្វ័យប្រវត្តិ)</label>
+                                <input id="cfgTgBotToken" type="text" placeholder="ឧ. 7123456789:AAH..." class="w-full px-3 py-1.5 border border-neutral-300 rounded-lg font-mono text-[11px]">
+                            </div>
+                            <div class="md:col-span-4">
+                                <label class="font-bold text-neutral-700 block mb-1">Telegram Chat ID របស់បង ឬ Group</label>
+                                <input id="cfgTgChatId" type="text" placeholder="ឧ. 123456789 ឬ -100..." class="w-full px-3 py-1.5 border border-neutral-300 rounded-lg font-mono text-[11px]">
+                            </div>
+                            <div class="md:col-span-3 flex gap-1.5">
+                                <button type="button" onclick="saveTelegramBotConfig()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition">
+                                    រក្សាទុក Telegram
+                                </button>
+                                <button type="button" onclick="testTelegramBotPush()" class="bg-neutral-800 hover:bg-neutral-900 text-white font-bold py-1.5 px-2.5 rounded-lg shadow-sm transition" title="សាកល្បងបាញ់សារចូល Telegram">
+                                    សាកល្បង
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
                         <div class="px-4 py-3 bg-neutral-100 border-b border-neutral-200 flex items-center justify-between">
                             <h4 class="text-xs font-bold text-neutral-800">បញ្ជីអតិថិជនដែលបានកក់ការណាត់ជួបមើលឡាន</h4>
-                            <button onclick="clearAllBookings()" class="text-[11px] text-red-600 hover:underline">លុបបញ្ជីចាស់ៗ</button>
+                            <div class="flex items-center gap-3">
+                                <button onclick="fetchSharedBookingsFromCloud(true)" class="text-[11px] text-ez-blue font-bold hover:underline">
+                                    <i class="fa-solid fa-arrows-rotate mr-0.5"></i> ពិនិត្យការកក់ថ្មី
+                                </button>
+                                <button onclick="clearAllBookings()" class="text-[11px] text-red-600 hover:underline">លុបបញ្ជីចាស់ៗ</button>
+                            </div>
                         </div>
                         <div id="adminBookingsContainer" class="p-4 divide-y divide-neutral-100 text-xs"><p class="text-neutral-400 py-6 text-center">មិនទាន់មានអតិថិជនកក់ការណាត់ជួបនៅឡើយទេ។</p></div>
                     </div>
                 </div>
 
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: BOOKING CONFIRMATION & TELEGRAM SEND
+         ========================================== -->
+    <div id="bookingConfirmModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-neutral-200 p-5 text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-xl shadow-sm">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-extrabold text-neutral-900">បានកត់ត្រាការណាត់ជួបជោគជ័យ!</h3>
+                <p id="bookingConfirmSummaryText" class="text-xs text-neutral-600 mt-1.5 leading-relaxed bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-left"></p>
+            </div>
+            <div class="space-y-2 pt-1">
+                <a id="bookingConfirmTelegramBtn" href="https://t.me/EZCar168" target="_blank" rel="noopener noreferrer" onclick="closeBookingConfirmModal()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-brands fa-telegram text-base"></i>
+                    <span>ផ្ញើសារបញ្ជាក់ចូល Telegram (@EZCar168) ឥឡូវនេះ</span>
+                </a>
+                <button type="button" onclick="closeBookingConfirmModal()" class="w-full py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-800">
+                    បិទផ្ទាំងនេះ
+                </button>
             </div>
         </div>
     </div>
@@ -2710,6 +2775,7 @@
             switchAdminTab(tabName);
             renderAdminCarTable();
             renderAdminBannersGrid();
+            fetchSharedBookingsFromCloud(false);
             renderAdminBookings();
             renderFormGalleryPreviewGrid();
             applySiteSettingsToDOM();
@@ -2976,16 +3042,171 @@
             showToast('បានត្រឡប់មកប្រើ Logo ស្តង់ដារ EZ CAR!', '');
         }
 
-        function submitAppointment(e) {
+        // Cross-tab & LocalStorage + Cloud Sync for Customer Bookings
+        const EZ_BOOKINGS_STORAGE_KEY = 'ezcar_customer_bookings_v2';
+        const EZ_CLOUD_BOOKINGS_URL = 'https://kvdb.io/6Wa9zX8pQ2mK4vR7nL1tBc/ezcar_pichpunleu22y_bookings';
+        window.ezBookingChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ezcar_bookings_sync') : null;
+
+        if (window.ezBookingChannel) {
+            window.ezBookingChannel.onmessage = function (ev) {
+                if (ev.data && Array.isArray(ev.data.bookings)) {
+                    window.customerBookings = ev.data.bookings;
+                    renderAdminBookings();
+                }
+            };
+        }
+
+        window.addEventListener('storage', function (ev) {
+            if (ev.key === EZ_BOOKINGS_STORAGE_KEY && ev.newValue) {
+                try {
+                    const parsed = JSON.parse(ev.newValue);
+                    if (Array.isArray(parsed)) {
+                        window.customerBookings = parsed;
+                        renderAdminBookings();
+                    }
+                } catch (err) {}
+            }
+        });
+
+        function mergeBookingsList(listA, listB) {
+            const map = new Map();
+            [...(listA || []), ...(listB || [])].forEach(item => {
+                if (item && item.id) map.set(String(item.id), item);
+            });
+            return Array.from(map.values()).sort((a, b) => Number(b.id) - Number(a.id));
+        }
+
+        function syncBookingsLocally() {
+            try {
+                localStorage.setItem(EZ_BOOKINGS_STORAGE_KEY, JSON.stringify(window.customerBookings));
+            } catch (err) {}
+            if (window.ezBookingChannel) {
+                try {
+                    window.ezBookingChannel.postMessage({ bookings: window.customerBookings });
+                } catch (err) {}
+            }
+        }
+
+        async function pushBookingsToCloud() {
+            try {
+                await fetch(EZ_CLOUD_BOOKINGS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(window.customerBookings)
+                });
+            } catch (err) {}
+        }
+
+        async function fetchSharedBookingsFromCloud(showNotification = false) {
+            // 1. Load any bookings saved in localStorage from another tab
+            try {
+                const localRaw = localStorage.getItem(EZ_BOOKINGS_STORAGE_KEY);
+                if (localRaw) {
+                    const localList = JSON.parse(localRaw);
+                    if (Array.isArray(localList)) {
+                        window.customerBookings = mergeBookingsList(window.customerBookings, localList);
+                    }
+                }
+            } catch (err) {}
+
+            // 2. Fetch shared online bookings from Cloud
+            try {
+                const res = await fetch(EZ_CLOUD_BOOKINGS_URL + '?t=' + Date.now());
+                if (res.ok) {
+                    const cloudList = await res.json();
+                    if (Array.isArray(cloudList)) {
+                        window.customerBookings = mergeBookingsList(window.customerBookings, cloudList);
+                        syncBookingsLocally();
+                        saveToIndexedDB();
+                    }
+                }
+            } catch (err) {}
+
+            renderAdminBookings();
+            if (showNotification) {
+                showToast('បានធ្វើបច្ចុប្បន្នភាពបញ្ជីណាត់ជួប!', `មានអតិថិជនណាត់ជួបសរុបចំនួន ${window.customerBookings.length} នាក់។`);
+            }
+        }
+
+        function saveTelegramBotConfig() {
+            const token = document.getElementById('cfgTgBotToken').value.trim();
+            const chatId = document.getElementById('cfgTgChatId').value.trim();
+            window.siteSettings.tgBotToken = token;
+            window.siteSettings.tgChatId = chatId;
+            try {
+                localStorage.setItem('ezcar_tg_config', JSON.stringify({ token, chatId }));
+            } catch (err) {}
+            saveToIndexedDB();
+            showToast('បានរក្សាទុកការកំណត់ Telegram Bot!', 'រាល់ការកក់ថ្មីនឹងបាញ់ចូល Telegram ស្វ័យប្រវត្តិ។');
+        }
+
+        async function sendBookingToTelegramBot(booking) {
+            const token = (window.siteSettings && window.siteSettings.tgBotToken) || '';
+            const chatId = (window.siteSettings && window.siteSettings.tgChatId) || '';
+            if (!token || !chatId) return false;
+
+            const text = `🚗 *មានអតិថិជនកក់ការណាត់ជួបថ្មី (EZ CAR)*\n` +
+                         `👤 ឈ្មោះ៖ *${booking.customerName}*\n` +
+                         `📞 ទូរស័ព្ទ/Telegram៖ *${booking.phone}*\n` +
+                         `🚙 ម៉ូដែលឡាន៖ *${booking.carModel}*\n` +
+                         `🛠️ សេវាកម្ម៖ ${booking.service}\n` +
+                         `📅 ថ្ងៃណាត់៖ *${booking.date}* (${booking.time})\n` +
+                         `⏰ ម៉ោងកក់៖ ${booking.createdAt}`;
+            try {
+                const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: text,
+                        parse_mode: 'Markdown'
+                    })
+                });
+                return res.ok;
+            } catch (err) {
+                return false;
+            }
+        }
+
+        async function testTelegramBotPush() {
+            saveTelegramBotConfig();
+            const ok = await sendBookingToTelegramBot({
+                customerName: 'តេស្តប្រព័ន្ធ EZ CAR',
+                phone: '071 536 6013',
+                carModel: 'AUDI Q7 | ឆ្នាំ 2010',
+                service: 'សាកល្បងប្រព័ន្ធបាញ់សារណាត់ជួប',
+                date: new Date().toISOString().split('T')[0],
+                time: 'ពេលព្រឹក (8:30 - 11:30)',
+                createdAt: new Date().toLocaleString('km-KH')
+            });
+            if (ok) {
+                showToast('បាញ់សារចូល Telegram ជោគជ័យ!', 'សូមពិនិត្យមើលសារនៅក្នុង Telegram របស់បង។');
+            } else {
+                showToast('មិនអាចបាញ់សារបានទេ', 'សូមពិនិត្យមើល Bot Token និង Chat ID ឱ្យបានត្រឹមត្រូវ។');
+            }
+        }
+
+        function closeBookingConfirmModal() {
+            const modal = document.getElementById('bookingConfirmModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function submitAppointment(e) {
             e.preventDefault();
-            const service = document.getElementById('bookingService').value;
-            const carModel = document.getElementById('bookingCarModel').value;
-            const date = document.getElementById('bookingDate').value;
-            const time = document.getElementById('bookingTime').value;
+            const service = document.getElementById('bookingService').value || 'ណាត់មើលរថយន្តផ្ទាល់នៅ Showroom';
+            const carModel = document.getElementById('bookingCarModel').value || 'មិនទាន់កំណត់ម៉ូដែល';
+            const date = document.getElementById('bookingDate').value || new Date().toISOString().split('T')[0];
+            const time = document.getElementById('bookingTime').value || 'ពេលព្រឹក (8:30 - 11:30)';
             const customerName = document.getElementById('bookingCustomerName').value.trim() || 'អតិថិជន EZ CAR';
             const phone = document.getElementById('bookingPhone').value.trim();
 
-            window.customerBookings.unshift({
+            if (!phone) {
+                showToast('សូមបញ្ចូលលេខទូរស័ព្ទ!', 'សូមវាយលេខទូរស័ព្ទ ឬ Telegram របស់អ្នកដើម្បីកក់ការណាត់ជួប។');
+                document.getElementById('bookingPhone').focus();
+                return;
+            }
+
+            const newBooking = {
                 id: Date.now(),
                 customerName,
                 phone,
@@ -2994,18 +3215,69 @@
                 date,
                 time,
                 createdAt: new Date().toLocaleString('km-KH')
-            });
+            };
 
+            window.customerBookings.unshift(newBooking);
+            syncBookingsLocally();
             renderAdminBookings();
             saveToIndexedDB();
-            showToast('បានផ្ញើសំណើណាត់ជួបជោគជ័យ!', `អរគុណ ${customerName}! ក្រុមការងារ EZ CAR នឹងទាក់ទងទៅកាន់លេខ ${phone} ភ្លាមៗ។`);
+            pushBookingsToCloud();
+            sendBookingToTelegramBot(newBooking);
+
+            // Prepare direct Telegram message link to @EZCar168
+            const cleanTg = ((window.siteSettings && window.siteSettings.telegram) || '@EZCar168').replace(/^@/, '').trim();
+            const tgMsg = `សួស្តី EZ CAR! ខ្ញុំសូមកក់ការណាត់ជួប៖
+- ឈ្មោះ៖ ${customerName}
+- ទូរស័ព្ទ៖ ${phone}
+- ម៉ូដែលឡាន៖ ${carModel}
+- សេវាកម្ម៖ ${service}
+- ថ្ងៃណាត់៖ ${date} (${time})`;
+            const tgDeepLink = `https://t.me/${cleanTg}?text=${encodeURIComponent(tgMsg)}`;
+
+            const summaryEl = document.getElementById('bookingConfirmSummaryText');
+            const tgBtnEl = document.getElementById('bookingConfirmTelegramBtn');
+            const confirmModal = document.getElementById('bookingConfirmModal');
+            if (summaryEl && tgBtnEl && confirmModal) {
+                summaryEl.innerHTML = `
+                    <div><strong>ឈ្មោះ៖</strong> ${customerName}</div>
+                    <div><strong>ទូរស័ព្ទ៖</strong> ${phone}</div>
+                    <div><strong>រថយន្ត៖</strong> ${carModel}</div>
+                    <div><strong>សេវាកម្ម៖</strong> ${service}</div>
+                    <div><strong>កាលបរិច្ឆេទ៖</strong> ${date} (${time})</div>
+                `;
+                tgBtnEl.href = tgDeepLink;
+                confirmModal.classList.remove('hidden');
+            }
+
+            showToast('បានកត់ត្រាការណាត់ជួបជោគជ័យ!', `អរគុណ ${customerName}! ការណាត់ជួបត្រូវបានរក្សាទុកក្នុងបញ្ជី Admin រួចរាល់។`);
             document.getElementById('appointmentForm').reset();
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('bookingDate').value = tomorrow.toISOString().split('T')[0];
+        }
+
+        function deleteSingleBooking(bookingId) {
+            window.customerBookings = window.customerBookings.filter(b => String(b.id) !== String(bookingId));
+            syncBookingsLocally();
+            renderAdminBookings();
+            saveToIndexedDB();
+            pushBookingsToCloud();
         }
 
         function renderAdminBookings() {
             const container = document.getElementById('adminBookingsContainer');
-            document.getElementById('adminBookingsCount').innerText = window.customerBookings.length;
+            const countEl = document.getElementById('adminBookingsCount');
+            if (countEl) countEl.innerText = window.customerBookings.length;
             if (!container) return;
+
+            const tokenInput = document.getElementById('cfgTgBotToken');
+            const chatInput = document.getElementById('cfgTgChatId');
+            if (tokenInput && window.siteSettings && window.siteSettings.tgBotToken && !tokenInput.value) {
+                tokenInput.value = window.siteSettings.tgBotToken;
+            }
+            if (chatInput && window.siteSettings && window.siteSettings.tgChatId && !chatInput.value) {
+                chatInput.value = window.siteSettings.tgChatId;
+            }
 
             if (window.customerBookings.length === 0) {
                 container.innerHTML = `<p class="text-neutral-400 py-6 text-center">មិនទាន់មានអតិថិជនកក់ការណាត់ជួបនៅឡើយទេ។</p>`;
@@ -3017,15 +3289,15 @@
                     <div>
                         <div class="font-bold text-neutral-900">${b.customerName} — <a href="tel:${b.phone}" class="text-ez-blue underline">${b.phone}</a></div>
                         <div class="text-neutral-600 mt-0.5">${b.service} • <strong>${b.carModel}</strong></div>
-                        <div class="text-[11px] text-neutral-400">ថ្ងៃណាត់៖ ${b.date} (${b.time})</div>
+                        <div class="text-[11px] text-neutral-400">ថ្ងៃណាត់៖ ${b.date} (${b.time}) • កក់នៅ៖ ${b.createdAt || ''}</div>
                     </div>
                     <div class="flex items-center gap-2">
                         <a href="tel:${b.phone}" class="px-3 py-1 rounded bg-emerald-600 text-white font-semibold text-[11px]">
                             <i class="fa-solid fa-phone"></i> ហៅទូរស័ព្ទ
                         </a>
-                        <a href="https://t.me/EZCar168" target="_blank" rel="noopener noreferrer" class="px-3 py-1 rounded bg-sky-500 text-white font-semibold text-[11px]">
-                            <i class="fa-brands fa-telegram"></i> Telegram
-                        </a>
+                        <button onclick="deleteSingleBooking(${b.id})" class="px-2.5 py-1 rounded bg-red-100 hover:bg-red-200 text-red-700 font-semibold text-[11px]">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
                     </div>
                 </div>
             `).join('');
@@ -3033,8 +3305,10 @@
 
         function clearAllBookings() {
             window.customerBookings = [];
+            syncBookingsLocally();
             renderAdminBookings();
             saveToIndexedDB();
+            pushBookingsToCloud();
         }
 
         // Export Standalone HTML File with all updated multi-image cars, banners & visual text edits baked in
@@ -3222,6 +3496,7 @@
             renderCars();
             renderAdminCarTable();
             renderAdminBannersGrid();
+            fetchSharedBookingsFromCloud(false);
             renderAdminBookings();
             renderFormGalleryPreviewGrid();
 
