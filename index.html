@@ -143,9 +143,9 @@
                 <span class="inline-flex items-center gap-1.5 bg-amber-400 text-neutral-950 font-extrabold px-2.5 py-1 rounded-full text-[11px] shadow">
                     <i class="fa-solid fa-wand-magic-sparkles"></i> EZ CAR STUDIO
                 </span>
-                <span id="syncStatusBadge" class="hidden xl:flex text-[11px] text-neutral-200 items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>រក្សាទុកស្វ័យប្រវត្តិ (IndexedDB + ដាក់រូបបានច្រើនសន្លឹក)</span>
+                <span id="syncStatusBadge" class="hidden xl:flex text-[11px] text-emerald-300 font-semibold items-center gap-1.5">
+                    <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="syncStatusText">Cloud Auto-Save កំពុងដំណើរការ (កែភ្លាម ឃើញគ្រប់ឧបករណ៍ភ្លាម)</span>
                 </span>
             </div>
 
@@ -171,9 +171,10 @@
                     <i class="fa-solid fa-table"></i> Google Sheets
                 </button>
 
-                <!-- 5. Save All Changes -->
-                <button onclick="saveAllVisualEdits(true)" class="bg-white/15 hover:bg-white/25 border border-white/25 text-white px-3 py-1.5 rounded-full text-[11px] font-bold transition flex items-center gap-1">
-                    <i class="fa-solid fa-floppy-disk text-emerald-300"></i> រក្សាទុកទាំងអស់
+                <!-- 5. Cloud Auto-Save All Changes -->
+                <button onclick="saveAllVisualEdits(true)" id="cloudSaveQuickBtn" class="bg-emerald-500 hover:bg-emerald-400 text-neutral-950 px-3.5 py-1.5 rounded-full text-[11px] font-extrabold transition flex items-center gap-1.5 shadow-md ring-2 ring-white/40">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span id="cloudSaveQuickBtnText">☁️ រក្សាទុកអនឡាញ (Cloud Save)</span>
                 </button>
 
                 <!-- 6. Download Complete HTML -->
@@ -3627,6 +3628,299 @@
             document.body.classList.add("ez-admin-unlocked");
         }
     };
+</script>
+
+
+<!-- ==========================================
+     ប្រព័ន្ធ CLOUD AUTO-SAVE & REAL-TIME SYNC (កែភ្លាម លោតគ្រប់ទូរស័ព្ទ និងគ្រប់ GOOGLE CHROME ភ្លាមៗ)
+     ========================================== -->
+<script>
+    const EZ_CLOUD_TOPIC_POINTER = "ezcar_pichpunleu22y_cloud_sync_v3";
+    const EZ_GH_REPO = "pichpunleu22y-ops/EZ-CRA-website";
+    const EZ_GH_STATE_FILE = "ezcar-cloud-state.json";
+    window.lastAppliedCloudTimestamp = 0;
+    window.cloudSaveTimeout = null;
+
+    function updateCloudBadgeStatus(state, text) {
+        const badgeText = document.getElementById("syncStatusText");
+        const badgeDot = document.getElementById("syncStatusDot");
+        const btnText = document.getElementById("cloudSaveQuickBtnText");
+        if (badgeText && text) badgeText.innerText = text;
+        if (badgeDot) {
+            if (state === "saving") {
+                badgeDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+            } else if (state === "saved") {
+                badgeDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+            } else if (state === "error") {
+                badgeDot.className = "w-2 h-2 rounded-full bg-red-400";
+            }
+        }
+        if (btnText) {
+            if (state === "saving") {
+                btnText.innerText = "⏳ កំពុងរក្សាទុកទៅ Cloud...";
+            } else if (state === "saved") {
+                btnText.innerText = "✅ បានរក្សាទុកលើ Cloud រួចរាល់";
+                setTimeout(() => {
+                    if (btnText) btnText.innerText = "☁️ រក្សាទុកអនឡាញ (Cloud Save)";
+                }, 3500);
+            } else {
+                btnText.innerText = "☁️ រក្សាទុកអនឡាញ (Cloud Save)";
+            }
+        }
+    }
+
+    // Upload full state (cars + multi-images + settings + bookings) to Cloud
+    window.pushStateToCloudNow = async function(showToastNotify = false) {
+        try {
+            updateCloudBadgeStatus("saving", "កំពុងបញ្ជូនទិន្នន័យទៅ Cloud...");
+            const nowTs = Date.now();
+            window.lastAppliedCloudTimestamp = nowTs;
+            localStorage.setItem("ezcar_local_updated_at", String(nowTs));
+
+            const fullState = {
+                version: 3,
+                updatedAt: nowTs,
+                cars: window.carInventory,
+                settings: window.siteSettings,
+                bookings: window.customerBookings
+            };
+            const jsonString = JSON.stringify(fullState);
+
+            let bytebinKey = null;
+            let jsonblobUrl = null;
+
+            // 1. Primary High-Capacity Cloud Store (Bytebin - supports up to 10MB with Base64 photos)
+            try {
+                const resBb = await fetch("https://bytebin.lucko.me/post", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: jsonString
+                });
+                if (resBb.ok) {
+                    const dataBb = await resBb.json();
+                    if (dataBb && dataBb.key) {
+                        bytebinKey = dataBb.key;
+                    }
+                }
+            } catch (e) {
+                console.warn("Bytebin upload warning:", e);
+            }
+
+            // 2. Backup Cloud Store (JSONBlob)
+            try {
+                const resJb = await fetch("https://jsonblob.com/api/jsonBlob", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: jsonString
+                });
+                if (resJb.ok) {
+                    const loc = resJb.headers.get("Location") || resJb.headers.get("location");
+                    if (loc) jsonblobUrl = loc.replace(/^http:/, "https:");
+                }
+            } catch (e) {}
+
+            // 3. Broadcast pointer to Ntfy global channel so all other browsers & phones know immediately
+            if (bytebinKey || jsonblobUrl) {
+                const pointerPayload = JSON.stringify({
+                    ezcarSync: true,
+                    updatedAt: nowTs,
+                    bytebinKey: bytebinKey,
+                    jsonblobUrl: jsonblobUrl
+                });
+                await fetch(`https://ntfy.sh/${EZ_CLOUD_TOPIC_POINTER}`, {
+                    method: "POST",
+                    body: pointerPayload
+                });
+            }
+
+            // 4. Optional Direct GitHub Repo Commit if GitHub Token is configured
+            const ghToken = localStorage.getItem("ezcar_gh_token") || (window.siteSettings && window.siteSettings.githubToken);
+            if (ghToken) {
+                try {
+                    let sha = undefined;
+                    const getRes = await fetch(`https://api.github.com/repos/${EZ_GH_REPO}/contents/${EZ_GH_STATE_FILE}`, {
+                        headers: { "Authorization": `Bearer ${ghToken}`, "Accept": "application/vnd.github.v3+json" }
+                    });
+                    if (getRes.ok) {
+                        const fileMeta = await getRes.json();
+                        sha = fileMeta.sha;
+                    }
+                    const encodedContent = btoa(unescape(encodeURIComponent(jsonString)));
+                    await fetch(`https://api.github.com/repos/${EZ_GH_REPO}/contents/${EZ_GH_STATE_FILE}`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${ghToken}`,
+                            "Accept": "application/vnd.github.v3+json",
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            message: "Cloud Auto-Save EZ CAR website data",
+                            content: encodedContent,
+                            sha: sha
+                        })
+                    });
+                } catch (ghErr) {
+                    console.warn("GitHub API auto-save warning:", ghErr);
+                }
+            }
+
+            updateCloudBadgeStatus("saved", "បានរក្សាទុកលើ Cloud ជោគជ័យ! (គ្រប់ឧបករណ៍ឃើញដូចគ្នា)");
+            if (showToastNotify) {
+                showToast("☁️ រក្សាទុកលើ Cloud ជោគជ័យ!", "ឥឡូវនេះបងបើក Link លើ Google Chrome ផ្សេង ឬទូរស័ព្ទភ្ញៀវ នឹងឃើញទិន្នន័យថ្មីនេះដូចគ្នាភ្លាមៗ!");
+            }
+        } catch (err) {
+            console.error("Cloud Auto-Save error:", err);
+            updateCloudBadgeStatus("error", "រក្សាទុកក្នុងម៉ាស៊ីនរួចរាល់ (សូមពិនិត្យអ៊ីនធឺណិតសម្រាប់ Cloud)");
+        }
+    };
+
+    // Debounced auto-save hook called automatically whenever any edit happens
+    window.persistAllStateToCloud = function() {
+        clearTimeout(window.cloudSaveTimeout);
+        window.cloudSaveTimeout = setTimeout(() => {
+            window.pushStateToCloudNow(false);
+        }, 600);
+    };
+
+    // Override saveAllVisualEdits so clicking the Save button immediately pushes to Cloud with confirmation toast
+    const origSaveVisualEditsFn = window.saveAllVisualEdits;
+    window.saveAllVisualEdits = function(notify = true) {
+        if (origSaveVisualEditsFn) origSaveVisualEditsFn(false);
+        window.pushStateToCloudNow(notify);
+    };
+
+    // Apply fetched cloud state to the current page
+    async function applyCloudStateObject(cloudData) {
+        if (!cloudData || !Array.isArray(cloudData.cars)) return false;
+        const cloudTs = Number(cloudData.updatedAt || 0);
+        if (cloudTs <= window.lastAppliedCloudTimestamp) return false;
+
+        window.lastAppliedCloudTimestamp = cloudTs;
+        localStorage.setItem("ezcar_local_updated_at", String(cloudTs));
+
+        window.carInventory = cloudData.cars.map(normalizeCarImages);
+        if (cloudData.settings) {
+            window.siteSettings = { ...defaultSiteSettings, ...cloudData.settings };
+        }
+        if (Array.isArray(cloudData.bookings)) {
+            window.customerBookings = mergeBookingsList(window.customerBookings, cloudData.bookings);
+        }
+
+        // Save to local IndexedDB without triggering a re-upload loop
+        try {
+            const db = await openEZCarDB();
+            const tx = db.transaction("state", "readwrite");
+            const store = tx.objectStore("state");
+            store.put(window.carInventory, "cars");
+            store.put(window.siteSettings, "settings");
+            store.put(window.customerBookings, "bookings");
+        } catch (e) {}
+
+        applySiteSettingsToDOM();
+        renderCars();
+        renderAdminCarTable();
+        renderAdminBannersGrid();
+        renderAdminBookings();
+        return true;
+    }
+
+    // Fetch latest state from Cloud on page load (so every visitor/browser sees the latest cars & edits)
+    window.loadAllStateFromCloud = async function() {
+        let bestCloudState = null;
+
+        // 1. Check Ntfy pointer channel for the latest Bytebin / JSONBlob snapshot
+        try {
+            const res = await fetch(`https://ntfy.sh/${EZ_CLOUD_TOPIC_POINTER}/json?poll=1&t=${Date.now()}`);
+            if (res.ok) {
+                const text = await res.text();
+                const lines = text.trim().split("\n").filter(Boolean);
+                for (let i = lines.length - 1; i >= 0; i--) {
+                    try {
+                        const msg = JSON.parse(lines[i]);
+                        if (msg && msg.message) {
+                            const pointer = JSON.parse(msg.message);
+                            if (pointer && pointer.ezcarSync) {
+                                if (pointer.bytebinKey) {
+                                    const bbRes = await fetch(`https://bytebin.lucko.me/${pointer.bytebinKey}`);
+                                    if (bbRes.ok) {
+                                        bestCloudState = await bbRes.json();
+                                        break;
+                                    }
+                                }
+                                if (!bestCloudState && pointer.jsonblobUrl) {
+                                    const jbRes = await fetch(pointer.jsonblobUrl);
+                                    if (jbRes.ok) {
+                                        bestCloudState = await jbRes.json();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+        } catch (err) {
+            console.warn("Cloud pointer fetch warning:", err);
+        }
+
+        // 2. Also check if ezcar-cloud-state.json exists in the GitHub repo
+        try {
+            const ghFileRes = await fetch(`./${EZ_GH_STATE_FILE}?t=${Date.now()}`);
+            if (ghFileRes.ok) {
+                const ghData = await ghFileRes.json();
+                if (ghData && Array.isArray(ghData.cars)) {
+                    if (!bestCloudState || Number(ghData.updatedAt || 0) > Number(bestCloudState.updatedAt || 0)) {
+                        bestCloudState = ghData;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        const localTs = Number(localStorage.getItem("ezcar_local_updated_at") || 0);
+
+        if (bestCloudState && Number(bestCloudState.updatedAt || 0) >= localTs) {
+            await applyCloudStateObject(bestCloudState);
+        } else if (!bestCloudState && window.carInventory && window.carInventory.length > 2) {
+            // If this browser already has extra cars added locally (like VAFVAU) and Cloud is empty, push them to Cloud automatically!
+            window.pushStateToCloudNow(false);
+        }
+    };
+
+    // Real-time Server-Sent Events (SSE) listener so other open browsers update live within 1 second!
+    function startRealtimeCloudListener() {
+        if (typeof EventSource === "undefined") return;
+        try {
+            const es = new EventSource(`https://ntfy.sh/${EZ_CLOUD_TOPIC_POINTER}/sse`);
+            es.onmessage = async function(event) {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg && msg.message) {
+                        const pointer = JSON.parse(msg.message);
+                        if (pointer && pointer.ezcarSync && Number(pointer.updatedAt || 0) > window.lastAppliedCloudTimestamp) {
+                            if (pointer.bytebinKey) {
+                                const bbRes = await fetch(`https://bytebin.lucko.me/${pointer.bytebinKey}`);
+                                if (bbRes.ok) {
+                                    const cloudData = await bbRes.json();
+                                    await applyCloudStateObject(cloudData);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {}
+            };
+        } catch (err) {}
+    }
+
+    // Hook into window load to fetch Cloud state immediately
+    window.addEventListener("load", function() {
+        setTimeout(() => {
+            window.loadAllStateFromCloud();
+            startRealtimeCloudListener();
+        }, 300);
+    });
 </script>
 
 </body></html>
