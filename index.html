@@ -1540,6 +1540,7 @@
          ========================================== -->
     <script>
         // 1. Default Multi-Image Car Inventory (Each car has 4+ photos out of the box!)
+        const defaultBakedAt = 1794650000000;
         const defaultCars = [
     {
         "id": 1794553505353,
@@ -1733,14 +1734,22 @@
             });
         }
 
-        async function saveToIndexedDB(triggerCloud = true) {
+        async function saveToIndexedDB(triggerCloud = true, explicitTimestamp = null) {
             try {
+                const ts = explicitTimestamp || Date.now();
+                if (triggerCloud && window.isEZAdminUnlocked) {
+                    localStorage.setItem('ezcar_admin_has_edited', 'true');
+                    localStorage.setItem('ezcar_state_ts', String(ts));
+                } else if (explicitTimestamp) {
+                    localStorage.setItem('ezcar_state_ts', String(ts));
+                }
                 const db = await openEZCarDB();
                 const tx = db.transaction('state', 'readwrite');
                 const store = tx.objectStore('state');
                 store.put(window.carInventory, 'cars');
                 store.put(window.siteSettings, 'settings');
                 store.put(window.customerBookings, 'bookings');
+                store.put(ts, 'updatedAt');
             } catch (e) {
                 console.warn('IndexedDB save fallback:', e);
             }
@@ -1758,14 +1767,37 @@
                     const carsReq = store.get('cars');
                     const settingsReq = store.get('settings');
                     const bookingsReq = store.get('bookings');
+                    const updatedAtReq = store.get('updatedAt');
 
                     tx.oncomplete = () => {
-                        if (Array.isArray(carsReq.result) && carsReq.result.length > 0) {
-                            window.carInventory = carsReq.result.map(normalizeCarImages);
+                        const idbCars = carsReq.result;
+                        const idbTs = Number(updatedAtReq.result || localStorage.getItem('ezcar_state_ts') || 0);
+                        const isAdminBrowser = localStorage.getItem('ezcar_admin_has_edited') === 'true' || (Array.isArray(idbCars) && idbCars.length > defaultCars.length);
+
+                        // Only use IndexedDB cars if:
+                        // 1) It has MORE cars than defaultCars (e.g. Browser 1 where Admin added VAFVAU), OR
+                        // 2) Its timestamp is newer than defaultBakedAt (from a recent Cloud Sync or Admin edit)
+                        const shouldUseIdbCars = Array.isArray(idbCars) && idbCars.length > 0 && (
+                            idbCars.length > defaultCars.length ||
+                            (idbTs > defaultBakedAt && (isAdminBrowser || idbCars.length !== 2))
+                        );
+
+                        if (shouldUseIdbCars) {
+                            window.carInventory = idbCars.map(normalizeCarImages);
+                            if (idbCars.length > defaultCars.length) {
+                                localStorage.setItem('ezcar_admin_has_edited', 'true');
+                            }
+                        } else {
+                            // Use the fresh defaultCars baked into index.html (fixes stuck 2-car cache on Browser 2!)
+                            window.carInventory = JSON.parse(JSON.stringify(defaultCars)).map(normalizeCarImages);
                         }
-                        if (settingsReq.result) {
+
+                        if (shouldUseIdbCars && settingsReq.result) {
                             window.siteSettings = { ...defaultSiteSettings, ...settingsReq.result };
+                        } else {
+                            window.siteSettings = JSON.parse(JSON.stringify(defaultSiteSettings));
                         }
+
                         if (Array.isArray(bookingsReq.result)) {
                             window.customerBookings = bookingsReq.result;
                         }
@@ -3360,11 +3392,13 @@
             if (wasEdit) toggleInlineEditMode();
 
             let htmlSource = document.documentElement.outerHTML;
+            const updatedBakedAtCode = `const defaultBakedAt = ${Date.now()};`;
             const updatedCarsCode = `const defaultCars = ${JSON.stringify(window.carInventory, null, 4)};`;
             const updatedSettingsCode = `const defaultSiteSettings = ${JSON.stringify(window.siteSettings, null, 4)};`;
 
-            htmlSource = htmlSource.replace(/const defaultCars = \[[\s\S]*?\];/, updatedCarsCode);
-            htmlSource = htmlSource.replace(/const defaultSiteSettings = \{[\s\S]*?\};/, updatedSettingsCode);
+            htmlSource = htmlSource.replace(/const defaultBakedAt = [0-9]+;/, () => updatedBakedAtCode);
+            htmlSource = htmlSource.replace(/const defaultCars = \[[\s\S]*?\];/, () => updatedCarsCode);
+            htmlSource = htmlSource.replace(/const defaultSiteSettings = \{[\s\S]*?\};/, () => updatedSettingsCode);
 
             const blob = new Blob(['<!DOCTYPE html>\n' + htmlSource], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -3632,13 +3666,15 @@
 
 
 <!-- ==========================================
-     ប្រព័ន្ធ CLOUD AUTO-SAVE & REAL-TIME SYNC (កែភ្លាម លោតគ្រប់ទូរស័ព្ទ និងគ្រប់ GOOGLE CHROME ភ្លាមៗ)
+     ប្រព័ន្ធ CLOUD AUTO-SAVE & REAL-TIME SYNC V5 (កែភ្លាម លោតគ្រប់ទូរស័ព្ទ និងគ្រប់ GOOGLE CHROME ភ្លាមៗ)
      ========================================== -->
 <script>
-    const EZ_CLOUD_TOPIC_POINTER = "ezcar_pichpunleu22y_cloud_ptr_v4";
-    const EZ_CLOUD_TOPIC_BLOB = "ezcar_pichpunleu22y_cloud_blob_v4";
-    const EZ_GH_REPO = "pichpunleu22y-ops/EZ-CRA-website";
-    const EZ_GH_STATE_FILE = "ezcar-cloud-state.json";
+    const EZ_CLOUD_TOPICS = [
+        "ezcar_pichpunleu22y_cloud_ptr_v4",
+        "ezcar_pichpunleu22y_cloud_sync_v3"
+    ];
+    const EZ_CLOUD_PRIMARY_TOPIC = "ezcar_pichpunleu22y_cloud_ptr_v4";
+    const EZ_CLOUD_CHUNKS_PREFIX = "ezcar_pichpunleu22y_chk_";
     window.lastAppliedCloudTimestamp = 0;
     window.cloudSaveTimeout = null;
     window.isCloudSavingNow = false;
@@ -3671,6 +3707,22 @@
         }
     }
 
+    // Build a lightweight car list (< 2.5KB) that fits directly inside the Ntfy pointer message
+    function buildLiteCarsList(cars) {
+        return (cars || []).map(c => {
+            const nonBase64Imgs = (c.images || []).filter(u => u && !String(u).startsWith("data:"));
+            return {
+                id: c.id,
+                name: c.name,
+                price: c.price,
+                badge: c.badge,
+                desc: c.desc,
+                images: nonBase64Imgs.length > 0 ? nonBase64Imgs : ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80"],
+                img: nonBase64Imgs[0] || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80"
+            };
+        });
+    }
+
     // Upload full state (cars + multi-images + settings + bookings) to Cloud
     window.pushStateToCloudNow = async function(showToastNotify = false) {
         if (window.isCloudSavingNow) return;
@@ -3679,9 +3731,11 @@
             updateCloudBadgeStatus("saving", "កំពុងបញ្ជូនទិន្នន័យទៅ Cloud...");
             const nowTs = Date.now();
             window.lastAppliedCloudTimestamp = nowTs;
+            localStorage.setItem("ezcar_admin_has_edited", "true");
+            localStorage.setItem("ezcar_state_ts", String(nowTs));
 
             const fullState = {
-                version: 4,
+                version: 5,
                 updatedAt: nowTs,
                 cars: window.carInventory,
                 settings: window.siteSettings,
@@ -3690,10 +3744,11 @@
             const jsonString = JSON.stringify(fullState);
 
             let bytebinKey = null;
-            let ntfyFileUrl = null;
-            let inlineSaved = false;
+            let pastesKey = null;
+            let chunkTopic = null;
+            let totalChunks = 0;
 
-            // 1. Primary High-Capacity Cloud Store: Bytebin (using text/plain to avoid CORS preflight)
+            // 1. Primary High-Capacity Cloud Store: Bytebin
             try {
                 const resBb = await fetch("https://bytebin.lucko.me/post", {
                     method: "POST",
@@ -3702,55 +3757,65 @@
                 });
                 if (resBb.ok) {
                     const dataBb = await resBb.json();
-                    if (dataBb && dataBb.key) {
-                        bytebinKey = dataBb.key;
-                    }
+                    if (dataBb && dataBb.key) bytebinKey = dataBb.key;
                 }
             } catch (e) {
                 console.warn("Bytebin upload warning:", e);
             }
 
-            // 2. Backup Cloud Store: Direct Ntfy Blob / Attachment upload
-            if (!bytebinKey) {
+            // 2. Secondary High-Capacity Cloud Store: pastes.dev
+            try {
+                const resPd = await fetch("https://api.pastes.dev/post", {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+                    body: jsonString
+                });
+                if (resPd.ok) {
+                    const dataPd = await resPd.json();
+                    if (dataPd && dataPd.key) pastesKey = dataPd.key;
+                }
+            } catch (e) {
+                console.warn("Pastes.dev upload warning:", e);
+            }
+
+            // 3. Fallback Chunked Ntfy Store if both Bytebin and Pastes.dev are unreachable
+            if (!bytebinKey && !pastesKey && jsonString.length < 180000) {
                 try {
-                    const resBlob = await fetch(`https://ntfy.sh/${EZ_CLOUD_TOPIC_BLOB}`, {
-                        method: "POST",
-                        headers: { "Content-Type": "text/plain;charset=UTF-8" },
-                        body: jsonString
-                    });
-                    if (resBlob.ok) {
-                        const blobMeta = await resBlob.json();
-                        if (blobMeta && blobMeta.attachment && blobMeta.attachment.url) {
-                            ntfyFileUrl = blobMeta.attachment.url;
-                        } else if (blobMeta && blobMeta.id) {
-                            inlineSaved = true;
-                        }
+                    chunkTopic = EZ_CLOUD_CHUNKS_PREFIX + nowTs;
+                    const chunkSize = 3200;
+                    totalChunks = Math.ceil(jsonString.length / chunkSize);
+                    for (let c = 0; c < totalChunks; c++) {
+                        const slice = jsonString.slice(c * chunkSize, (c + 1) * chunkSize);
+                        await fetch(`https://ntfy.sh/${chunkTopic}`, {
+                            method: "POST",
+                            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+                            body: `CHK|${c}|${totalChunks}|${slice}`
+                        });
                     }
                 } catch (e) {
-                    console.warn("Ntfy blob upload warning:", e);
+                    console.warn("Chunk upload warning:", e);
                 }
             }
 
-            // 3. Broadcast pointer to Ntfy global channel (prefixed with EZCAR_PTR| so Ntfy treats it as plain text)
-            let pointerPublished = false;
-            if (bytebinKey || ntfyFileUrl || inlineSaved) {
-                const pointerObj = {
-                    ezcarSync: true,
-                    updatedAt: nowTs,
-                    carCount: window.carInventory.length,
-                    bytebinKey: bytebinKey,
-                    ntfyFileUrl: ntfyFileUrl,
-                    inlineSaved: inlineSaved
-                };
-                const resPtr = await fetch(`https://ntfy.sh/${EZ_CLOUD_TOPIC_POINTER}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "text/plain;charset=UTF-8" },
-                    body: "EZCAR_PTR|" + JSON.stringify(pointerObj)
-                });
-                pointerPublished = resPtr.ok;
-            }
+            // 4. Broadcast pointer + embedded lite cars to Ntfy global channel
+            const pointerObj = {
+                ezcarSync: true,
+                updatedAt: nowTs,
+                carCount: window.carInventory.length,
+                bytebinKey: bytebinKey,
+                pastesKey: pastesKey,
+                chunkTopic: chunkTopic,
+                totalChunks: totalChunks,
+                carsLite: buildLiteCarsList(window.carInventory)
+            };
 
-            if (pointerPublished) {
+            const resPtr = await fetch(`https://ntfy.sh/${EZ_CLOUD_PRIMARY_TOPIC}`, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=UTF-8" },
+                body: "EZCAR_PTR|" + JSON.stringify(pointerObj)
+            });
+
+            if (resPtr.ok) {
                 updateCloudBadgeStatus("saved", `បានរក្សាទុកលើ Cloud ជោគជ័យ! (${window.carInventory.length} គ្រឿង)`);
                 if (showToastNotify) {
                     showToast(
@@ -3760,9 +3825,6 @@
                 }
             } else {
                 updateCloudBadgeStatus("error", "មិនអាចភ្ជាប់ទៅ Cloud បានទេ សូមចុច Cloud Save ម្តងទៀត");
-                if (showToastNotify) {
-                    showToast("⚠️ ការបញ្ជូនទៅ Cloud មានបញ្ហាអ៊ីនធឺណិត", "សូមចុចប៊ូតុង Cloud Save ម្តងទៀត។");
-                }
             }
         } catch (err) {
             console.error("Cloud Auto-Save error:", err);
@@ -3778,7 +3840,7 @@
         clearTimeout(window.cloudSaveTimeout);
         window.cloudSaveTimeout = setTimeout(() => {
             window.pushStateToCloudNow(false);
-        }, 1500);
+        }, 1200);
     };
 
     // Override saveAllVisualEdits so clicking the Cloud Save button immediately pushes to Cloud
@@ -3803,8 +3865,8 @@
             window.customerBookings = mergeBookingsList(window.customerBookings, cloudData.bookings);
         }
 
-        // Save to local IndexedDB WITHOUT triggering a re-upload loop
-        await saveToIndexedDB(false);
+        // Save to local IndexedDB with explicit Cloud timestamp WITHOUT triggering a re-upload loop
+        await saveToIndexedDB(false, cloudTs);
 
         applySiteSettingsToDOM();
         renderCars();
@@ -3814,85 +3876,123 @@
         return true;
     }
 
-    // Helper to fetch full state from a pointer object
+    // Helper to fetch full state from a pointer object (checks Bytebin -> Pastes.dev -> JSONBlob -> Ntfy Chunks -> Embedded Lite Cars)
     async function resolveCloudStateFromPointer(pointer) {
         if (!pointer || !pointer.ezcarSync) return null;
+
         if (pointer.bytebinKey) {
             try {
                 const bbRes = await fetch(`https://bytebin.lucko.me/${pointer.bytebinKey}`, { cache: "no-store" });
-                if (bbRes.ok) {
-                    return await bbRes.json();
-                }
+                if (bbRes.ok) return await bbRes.json();
             } catch (e) {}
         }
-        if (pointer.ntfyFileUrl) {
+
+        if (pointer.pastesKey) {
             try {
-                const nfRes = await fetch(pointer.ntfyFileUrl, { cache: "no-store" });
-                if (nfRes.ok) {
-                    return await nfRes.json();
-                }
+                const pdRes = await fetch(`https://api.pastes.dev/${pointer.pastesKey}`, { cache: "no-store" });
+                if (pdRes.ok) return await pdRes.json();
             } catch (e) {}
         }
-        if (pointer.inlineSaved) {
+
+        if (pointer.jsonblobUrl) {
             try {
-                const blobRes = await fetch(`https://ntfy.sh/${EZ_CLOUD_TOPIC_BLOB}/json?poll=1&since=all`, { cache: "no-store" });
-                if (blobRes.ok) {
-                    const txt = await blobRes.text();
+                const jbRes = await fetch(pointer.jsonblobUrl, { cache: "no-store" });
+                if (jbRes.ok) return await jbRes.json();
+            } catch (e) {}
+        }
+
+        if (pointer.chunkTopic && pointer.totalChunks > 0) {
+            try {
+                const chkRes = await fetch(`https://ntfy.sh/${pointer.chunkTopic}/json?poll=1&since=all`, { cache: "no-store" });
+                if (chkRes.ok) {
+                    const txt = await chkRes.text();
                     const lines = txt.trim().split("\n").filter(Boolean);
-                    for (let i = lines.length - 1; i >= 0; i--) {
-                        const msg = JSON.parse(lines[i]);
-                        if (msg && msg.attachment && msg.attachment.url) {
-                            const attRes = await fetch(msg.attachment.url, { cache: "no-store" });
-                            if (attRes.ok) return await attRes.json();
-                        } else if (msg && msg.message && msg.message.startsWith("{")) {
-                            return JSON.parse(msg.message);
-                        }
+                    const chunks = new Array(pointer.totalChunks).fill("");
+                    let received = 0;
+                    for (const line of lines) {
+                        try {
+                            const msg = JSON.parse(line);
+                            if (msg && typeof msg.message === "string" && msg.message.startsWith("CHK|")) {
+                                const parts = msg.message.split("|");
+                                const idx = parseInt(parts[1], 10);
+                                const content = parts.slice(3).join("|");
+                                if (!isNaN(idx) && chunks[idx] === "") {
+                                    chunks[idx] = content;
+                                    received++;
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    if (received === pointer.totalChunks) {
+                        return JSON.parse(chunks.join(""));
                     }
                 }
             } catch (e) {}
         }
+
+        // Ultimate fallback: if external blob stores were blocked, still return the embedded carsLite!
+        if (Array.isArray(pointer.carsLite) && pointer.carsLite.length > 0) {
+            return {
+                version: 5,
+                updatedAt: pointer.updatedAt || Date.now(),
+                cars: pointer.carsLite
+            };
+        }
+
         return null;
     }
 
-    // Fetch latest state from Cloud on page load (so every visitor/browser sees the latest cars & edits)
+    // Fetch latest state from Cloud on page load (checks both v4 and v3 topics with &since=all)
     window.loadAllStateFromCloud = async function() {
-        let bestCloudState = null;
+        let latestPointer = null;
 
-        // 1. Query Ntfy pointer channel with ?poll=1&since=all (CRITICAL: since=all returns cached messages!)
-        try {
-            const res = await fetch(`https://ntfy.sh/${EZ_CLOUD_TOPIC_POINTER}/json?poll=1&since=all`, {
-                cache: "no-store"
-            });
-            if (res.ok) {
-                const text = await res.text();
-                const lines = text.trim().split("\n").filter(Boolean);
-                for (let i = lines.length - 1; i >= 0; i--) {
-                    try {
-                        const msg = JSON.parse(lines[i]);
-                        if (msg && typeof msg.message === "string") {
-                            const rawMsg = msg.message.startsWith("EZCAR_PTR|")
-                                ? msg.message.slice("EZCAR_PTR|".length)
-                                : msg.message;
-                            if (rawMsg.startsWith("{")) {
-                                const pointer = JSON.parse(rawMsg);
-                                const stateObj = await resolveCloudStateFromPointer(pointer);
-                                if (stateObj && Array.isArray(stateObj.cars)) {
-                                    bestCloudState = stateObj;
-                                    break;
+        for (const topic of EZ_CLOUD_TOPICS) {
+            try {
+                const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=all`, {
+                    cache: "no-store"
+                });
+                if (res.ok) {
+                    const text = await res.text();
+                    const lines = text.trim().split("\n").filter(Boolean);
+                    for (let i = lines.length - 1; i >= 0; i--) {
+                        try {
+                            const msg = JSON.parse(lines[i]);
+                            if (msg && typeof msg.message === "string") {
+                                const rawMsg = msg.message.startsWith("EZCAR_PTR|")
+                                    ? msg.message.slice("EZCAR_PTR|".length)
+                                    : msg.message;
+                                if (rawMsg.startsWith("{")) {
+                                    const pointer = JSON.parse(rawMsg);
+                                    if (pointer && pointer.ezcarSync) {
+                                        if (!latestPointer || Number(pointer.updatedAt || 0) > Number(latestPointer.updatedAt || 0)) {
+                                            latestPointer = pointer;
+                                        }
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                    } catch (e) {}
+                        } catch (e) {}
+                    }
                 }
+            } catch (err) {
+                console.warn("Cloud topic check warning:", err);
             }
-        } catch (err) {
-            console.warn("Cloud pointer fetch warning:", err);
         }
 
-        if (bestCloudState) {
-            await applyCloudStateObject(bestCloudState);
-        } else if (window.carInventory && window.carInventory.length > 2) {
-            // If this browser already has extra cars added locally (like VAFVAU) and Cloud v4 is empty, push them to Cloud automatically!
+        let appliedFromCloud = false;
+        if (latestPointer) {
+            const stateObj = await resolveCloudStateFromPointer(latestPointer);
+            if (stateObj && Array.isArray(stateObj.cars)) {
+                // Only apply if Cloud has at least as many cars or is newer than local Admin edits
+                const localAdminTs = Number(localStorage.getItem("ezcar_state_ts") || 0);
+                if (window.carInventory.length <= stateObj.cars.length || Number(stateObj.updatedAt || 0) >= localAdminTs) {
+                    appliedFromCloud = await applyCloudStateObject(stateObj);
+                }
+            }
+        }
+
+        // If this browser is Browser 1 (has > 2 cars locally) and Cloud doesn't have them yet, auto-push to Cloud immediately!
+        if (window.carInventory && window.carInventory.length > 2 && (!latestPointer || Number(latestPointer.carCount || 0) < window.carInventory.length)) {
             window.pushStateToCloudNow(false);
         }
     };
@@ -3901,7 +4001,7 @@
     function startRealtimeCloudListener() {
         if (typeof EventSource === "undefined") return;
         try {
-            const es = new EventSource(`https://ntfy.sh/${EZ_CLOUD_TOPIC_POINTER}/sse`);
+            const es = new EventSource(`https://ntfy.sh/${EZ_CLOUD_PRIMARY_TOPIC}/sse`);
             es.onmessage = async function(event) {
                 try {
                     const msg = JSON.parse(event.data);
@@ -3929,7 +4029,7 @@
         setTimeout(() => {
             window.loadAllStateFromCloud();
             startRealtimeCloudListener();
-        }, 250);
+        }, 200);
     });
 </script>
 </body></html>
